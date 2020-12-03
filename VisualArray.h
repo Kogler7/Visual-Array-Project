@@ -1,3 +1,5 @@
+//version 20s01b belongs to VAP_1.3.0 snapshot
+
 #pragma once
 #ifndef VISUAL_SORTING
 //defination

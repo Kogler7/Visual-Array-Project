@@ -1,3 +1,5 @@
+//version 20s01b belongs to VAP_1.3.0 snapshot
+
 #include"VisualArray.h"
 COLORREF _BACK = WHITE, _FORE = BLACK, _FOCUS = RED, _MARK = YELLOW;
 int _IntvalGet = 5, _IntvalSet = 10;
