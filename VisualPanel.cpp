@@ -1,6 +1,6 @@
 #include"VisualArrayProject.h"
 //VisualPanel
-void VisualPanel::CreatePanel(
+void VisualPanel::Initialize(
 	VisualBox vBox[],//绑定
 	int boxNum,//box数量，默认2个，最多32个
 	int width,//窗口宽度
@@ -16,7 +16,7 @@ void VisualPanel::CreatePanel(
 		vBox[i].parent = this;
 	}
 }
-void VisualPanel::CreatePanel(
+void VisualPanel::Initialize(
 	VisualBox &vBox,//绑定
 	int width,//窗口宽度
 	int height,//窗口高度
@@ -48,12 +48,16 @@ void VisualPanel::ReBind(VisualBox vBox) {
 }
 //主题设置
 void VisualPanel::SetTheme(ColorTheme CT) {
+	setfillcolor(CT.Back);
+	//注意更换图像处理方式
+	floodfill(5, 5, _BACK);//尚无法处理中途更换问题
+	FlushBatchDraw();
 	_BACK = CT.Back;
-	setbkcolor(_BACK);
-	floodfill(1, 1, _BACK);
 	_FORE = CT.Fore;
 	_FOCUS = CT.Focus;
 	_MARK = CT.Mark;
+	setbkcolor(_BACK);
+	setlinecolor(_BACK);
 }
 void VisualPanel::SetBackColor(COLORREF C) { _BACK = C; setbkcolor(_BACK); floodfill(1, 1, _BACK); }
 void VisualPanel::SetForeColor(COLORREF C) { _FORE = C; }

@@ -1,37 +1,54 @@
-//version 20s02a belongs to VAP_1.3.0 snapshot
+/*
+*version 21s01a belongs to VAP_1.4.0 snapshot
+* 
+*Developed by Kogler
+*/
 #pragma once
 #ifndef VISUAL_ARRAY_PROJECT
 #define VISUAL_ARRAY_PROJECT
-#include<stdlib.h>
-#include<time.h>
 #include<graphics.h>
+#include<stdlib.h>
 #include<stdio.h>
+#include<iostream>
+#include<time.h>
 #include<thread>
+#include<mutex>
 #define MaxFocusNum 32
-extern COLORREF _BACK, _FORE, _FOCUS, _MARK;
-extern int _IntvalGet, _IntvalSet;
-enum VisState { NORM, FOCUSED, MARKED };
-enum ColrRef { RNULL, RNORM, RFOCUS, RMARK };
-enum ApCoord { AP_LT, AP_LB, AP_RT, AP_RB };
-enum GridMode { BY_INT, BY_CHAR };
-enum Padding { 
-	TOP_LEFT,			TOP_MID,				TOP_RIGHT,
-	MID_LEFT,				PD_CENTER,			MID_RIGHT, 
-	BOTTOM_LEFT,		BOTTOM_MID,		BOTTOM_RIGHT
-};
 //ColorTheme
 #define DEFAULT_THEME ColorTheme{ WHITE,BLACK,RED,BLUE }
-//#define DEFAULT_THEME ColorTheme{ 0xFFFFFF,0x212121,0xD32F2F,0xFFEB3B }
+#define NEW_THEME ColorTheme{ BGR(0xF44336),0xFFFFFF,BGR(0xFFEB3B),BGR(0x03A9F4) }
 #define CHINA_THEME ColorTheme{ WHITE,BLACK,RED,YELLOW }
-
+using namespace std;
+extern COLORREF _BACK, _FORE, _FOCUS, _MARK;
+extern int _IntvalGet, _IntvalSet;
+//enum classes
+enum class ColrRef { RNULL, NORM, FOCUS, MARK };
+enum class ApCoord { AP_LT, AP_LB, AP_RT, AP_RB };
+enum class GridMode { BY_INT, BY_CHAR };
+enum class Padding { 
+	TOP_LEFT,			TOP_MID,				TOP_RIGHT,
+	MID_LEFT,				CENTER,				MID_RIGHT, 
+	BOTTOM_LEFT,		BOTTOM_MID,		BOTTOM_RIGHT
+};
+//struct declaration
+struct ColorTheme { COLORREF Back, Fore, Focus, Mark; };
+struct Coord { int x, y; }; struct Size { int h, w; }; struct Layout { int t, l, r, b; };
+//class declaration
+class CoordSize;
+class TimeTeller;
+class InforBar;
 class VisualArray;
 class VisualVal;
 class VisualGrid;
 class VisualBox;
 class VisualPanel;
-
-struct ColorTheme { COLORREF Back, Fore, Focus, Mark; };
-struct Coord { int x, y; }; struct Size { int h, w; }; struct Layout { int t, l, r, b; };
+class VisualCanvas;
+//内置默认对象
+extern VisualCanvas Canvas;
+extern VisualPanel _Panel;
+extern VisualBox _Box[2];
+extern InforBar Infor;
+//工具类定义
 class CoordSize {
 public:
 	Coord Cd = { 0,0 };//绘制原点
@@ -39,12 +56,11 @@ public:
 	Layout Lt = { 0,0,10,10 };//布局
 	void setbyLt(int t, int l, int r, int b);
 	void setbyCd(int x, int y);
-	void setbySz(int h, int w, int Ap = AP_LT);
+	void setbySz(int h, int w, ApCoord Ap = ApCoord::AP_LT);
 	void setbyCS(int x, int y, int h, int w);
-	void aPndSz(int dh, int dw, int Ap = AP_LT);
+	void aPndSz(int dh, int dw, ApCoord Ap = ApCoord::AP_LT);
 };
-
-class VisualTime
+class TimeTeller
 {
 public:
 	void Start();//开始 计时
@@ -59,43 +75,76 @@ private:
 	long t = 0, _t = 0;
 	bool awake = true;
 };
-//重载运算符
-//bool operator>(VisualArray& vArr1, VisualArray& vArr2);
-//bool operator<(VisualArray& vArr1, VisualArray& vArr2);
-//bool operator>=(VisualArray& vArr1, VisualArray& vArr2);
-//bool operator<=(VisualArray& vArr1, VisualArray& vArr2);
-//bool operator==(VisualArray& vArr1, VisualArray& vArr2);
-//void operator+=(VisualArray& vArr1, VisualArray& vArr2);
-//void operator-=(VisualArray& vArr1, VisualArray& vArr2);
-//int operator+(VisualArray& vArr1, VisualArray& vArr2);
-//int operator-(VisualArray& vArr1, VisualArray& vArr2);
+class InforBar
+{
+	CoordSize _frame, _msgBar, _chkBar;
+	bool enabled = false;
+	void enable();
+	void disable();
+	void MsgAppend(char* head, void* body);
+	void ChkAppend();
+	void showInterval();
+	void showFPS();
+};
 //Visual Array
 class VisualArray
 {
 public:
 	CoordSize CS;
 	VisualBox* pBox = NULL;
-	int _visState = NORM;
 	int no_ = 0, value_ = 0,
 		maxVal_ = 127, minVal_ = 0;
 	char visCh_[4] = { '\0' };
-	//已绘制的值
-	int _visVal = 0;
-	ColrRef _visColr = RNULL;
+	bool _isMarked = false;
+	//已绘制
+	int _updVal = 0;
+	ColrRef _updColr = ColrRef::RNULL;
 	//指定排列位置（供内部调用）
 	virtual void layout(int NO) {};
 	void addFocus(VisualBox* pBox);
 	virtual void set(int Val) {};
 	virtual int get() { return 0; };
-	//基本绘制（供内部调用）
-	virtual void drawIn(ColrRef C) {};
-	//绘制可视化数值条
-	virtual void draw() {};
+	//绘制
+	virtual void drawIn(ColrRef ref = ColrRef::NORM) {};
 	//标记
 	virtual void mark() {};
 	//取消标记
 	virtual void unmark() {};
 	virtual void operator=(VisualArray& vArr) {};
+	virtual void operator=(int& val) {};//=最好有返回值
+	//重载运算符
+	bool operator >(VisualArray& op) { return get() > op.get(); }
+	bool operator <(VisualArray& op) { return get() < op.get(); }
+	bool operator >=(VisualArray& op) { return get() >= op.get(); }
+	bool operator <=(VisualArray& op) { return get() <= op.get(); }
+	bool operator ==(VisualArray& op) { return get() == op.get(); }
+	bool operator !=(VisualArray& op) { return get() != op.get(); }
+	bool operator >(const int& op) { return get() > op; }
+	bool operator <(const int& op) { return get() < op; }
+	bool operator >=(const int& op) { return get() >= op; }
+	bool operator <=(const int& op) { return get() <= op; }
+	bool operator ==(const int& op) { return get() == op; }
+	bool operator !=(const int& op) { return get() != op; }
+	int operator ++() { set(++value_); return value_; }
+	int operator ++(int) { int temp = value_; set(++value_); return temp; }
+	int operator --() { set(--value_); return value_; }
+	int operator --(int) { int temp = value_; set(--value_); return temp; }
+	void operator +=(VisualArray& op) { set(value_ + op.value_); }
+	void operator +=(int& op) { set(value_ + op); }
+	void operator -=(VisualArray& op) { set(value_ - op.value_); }
+	void operator -=(int& op) { set(value_ - op); }
+	void operator *=(VisualArray& op) { set(value_ * op.value_); }
+	void operator *=(int& op) { set(value_ * op); }
+	void operator /=(VisualArray& op) { set(value_ / op.value_); }
+	void operator /=(int& op) { set(value_ / op); }
+	int operator +(VisualArray& op) { return get() + op.value_; }
+	int operator +(int& op) { return get() + op; }
+	int operator -(VisualArray& op) { return get() - op.value_; }
+	int operator -(int& op) { return get() + op; }
+	int operator *(VisualArray& op) { return get() * op.value_; }
+	int operator *(int& op) { return get() + op; }
+	int operator /(VisualArray& op) { return get() / op.value_; }
+	int operator /(int& op) { return get() + op; }
 };
 
 class VisualVal :public VisualArray
@@ -104,15 +153,14 @@ public:
 	void set(int Val);
 	int get();
 	void layout(int NO);
-	//基本绘制（供内部调用）
-	void drawIn(ColrRef C);
-	//绘制可视化数值条
-	void draw();
+	//绘制
+	void drawIn(ColrRef ref = ColrRef::NORM);
 	//标记
 	void mark();
 	//取消标记
 	void unmark();
 	void operator=(VisualVal& V);
+	void operator=(int& val);
 };
 
 class VisualGrid :public VisualArray
@@ -121,15 +169,14 @@ public:
 	void set(int Val);
 	int get();
 	void layout(int NO);
-	//基本绘制（供内部调用）
-	void drawIn(ColrRef C);
-	//绘制可视化数值条
-	void draw();
+	//绘制
+	void drawIn(ColrRef ref = ColrRef::NORM);
 	//标记
 	void mark();
 	//取消标记
 	void unmark();
 	void operator=(VisualGrid& V);
+	void operator=(int& val);
 };
 
 class VisualPanel 
@@ -140,14 +187,14 @@ public:
 	CoordSize CS;
 	VisualBox* kid[32] = { NULL };
 	int _kidNum = 1;
-	void CreatePanel(
+	void Initialize(
 		VisualBox vBox[],//绑定
 		int boxNum = 128,//指定所绑定的
 		int width = 640,//窗口宽度
 		int height = 480,//窗口高度
 		bool hideC = true//在绘制窗口是否关闭控制台
 	);
-	void CreatePanel(
+	void Initialize(
 		VisualBox &vBox,//绑定
 		int width = 640,//窗口宽度
 		int height = 480,//窗口高度
@@ -180,26 +227,32 @@ public:
 	VisualPanel* parent = NULL;
 	VisualArray* _focusArr[MaxFocusNum+1] = { NULL };
 	int _FocusNum = 2;
-	bool _gridMode = BY_CHAR;
+	GridMode _gridMode = GridMode::BY_CHAR;
 	int _pWidth = 0, _pHeight = 0;//最小单位size
 	int _maxLen = 8, _lines = 1;
 	CoordSize CS;
 	int focusing = 0;
 	void Focus();
 	//创建与销毁可视化沙盒
-	void CreateBox(
+	void Initialize(
 		VisualVal visVal[],//绑定VisualVa数组
 		int arrNum = 128,//指定所绑定的VisualArray数组长度
 		int maxVal = 128,//VisualValue数组元素最大值
-		int width = 640,//窗口宽度
-		int height = 480//窗口高度
+		int maxWidth = 640,//窗口宽度
+		int maxHeight = 480//窗口高度
 	);
-	void CreateBox(
+	void Initialize(
 		VisualGrid visGrid[],//绑定VisualGrid数组
 		int arrNum = 32,//指定所绑定的VisualArray数组长度
-		GridMode gridMode = BY_CHAR,
+		GridMode gridMode = GridMode::BY_CHAR,
 		int gridSize = 48,//字符格边长
 		int maxLen = 8//每行最大容纳量
+	);
+	void Initialize(
+		VisualGrid **visMatrix,//绑定矩阵
+		int order,//矩阵阶数
+		GridMode gridMode = GridMode::BY_CHAR,
+		int gridSize = 48//字符格边长
 	);
 	void CloseBox();
 	void LayOut(Padding pd);
@@ -209,38 +262,44 @@ public:
 	//快速批量导入数据, m 指示在VisualValue数组中开始导入的位置
 	void VisArrMassInput(int Val[], int n, int m);
 	//快速批量初始化（随机）
-	void VisArrMassRand(int max, int min = 0);
+	void VisArrMassRand(int max, int min = 0, bool masDraw = false);
 	//快速批量绘制
 	void VisArrMassDraw();
-	void Infor();
 };
 
-class VisualMatrix
+class VisualCanvas
 {
-
+public:
+	VisualPanel* dftPanel;
+	VisualPanel* Initialize();
 };
 
-class FastDeveloper 
-{
-	VisualPanel P;
-	VisualBox B;
-	VisualVal I[128];
-	VisualGrid C[64];
-};
-
-//内置可视化排序函数
+/*内置可视化排序函数*/
+//可视化冒泡排序
 void VisualBubbleSort(VisualVal VisArr[], int n);
+/*可视化选择排序*/
 void VisualSelectionSort(VisualVal VisArr[], int n);
+//可视化插入排序
 void VisualInsertionSort(VisualVal VisArr[], int n);
+/*可视化希尔排序*/
 void VisualHillSort(VisualVal VisArr[], int n);
+//
 void VisualMergeSort(VisualVal VisArr[], int n);
+/*可视化快速排序（l、r分别为所需排序数组的左右边界）*/
 void VisualQuickSort(VisualVal VisArr[], int l, int r);
+//
 void VisualRadixSort(VisualVal VisArr[], int n);
+/**/
 void VisualHeapSort(VisualVal VisArr[], int n);
+//
 void VisualCountingSort(VisualVal VisArr[], int n);
+/*可视化桶排序*/
 void VisualBucketSort(VisualVal VisArr[], int n);
+
 //其他
 
+//暂停等待
+void Pause();
 //强化随机函数
 int Rndp(int max = 10, int min = 0);
 #endif
